@@ -59,7 +59,7 @@ describe("ClaimDecoder", () => {
     await circuit.expectConstraintPass(witness);
   });
 
-  it("It should decode raw claims without padding correctly", async () => {
+  it("Chinese char in Testcase", async () => {
     const testcase = [
       "WyJmSGlPTE9ZRVFhZkF3MjBCZjRxZXpBIiwibmFtZSIsIumZs-etseeOsiJd",
       "WyJLVXYxVF9BNXpvVDlJbXFURmUwdUxnIiwiaWRfbnVtYmVyIiwiQTIzNDU2Nzg5MCJd",
@@ -68,8 +68,9 @@ describe("ClaimDecoder", () => {
       "WyJJdFVGQUV2S0kybFJCV2MzU19LTjhnIiwiY29udHJvbG51bWJlciIsIjQwMTA0MDIwOTE0NDUiXQ",
       "WyJROWEySWM3b1IxUjRFQ0VXX3RYaUlRIiwiZ0RhdGUiLCIxMDIwNzAxIl0",
     ];
+
     const maxClaimsLength = 128;
-    const maxClaims = 6;
+    const maxClaims = 8;
 
     circuit = await circomkit.WitnessTester("ClaimDecoder", {
       file: "claim-decoder",
@@ -78,7 +79,7 @@ describe("ClaimDecoder", () => {
       recompile: true,
     });
 
-    const decodeFlags = [0, 0, 1, 0, 0, 0];
+    const decodeFlags = [0, 0, 1, 0, 0, 0, 0, 0];
     const base64urlToBase64 = (b64url: string) => {
       let b64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
       const pad = (4 - (b64.length % 4)) % 4;
@@ -87,16 +88,19 @@ describe("ClaimDecoder", () => {
     const expectedOutputs = testcase.map((s) => atob(base64urlToBase64(s)));
     const { claimArray, claimLengths } = encodeClaims(testcase, maxClaims, maxClaimsLength);
 
-    const witness = await circuit.calculateWitness({
+    const inputs = {
       claims: claimArray,
       claimLengths,
       decodeFlags,
-    });
-
+    };
+    console.log("inputs:", inputs);
+    const witness = await circuit.calculateWitness(inputs);
     const outputs = await circuit.readWitnessSignals(witness, ["decodedClaims", "claimHashes"]);
 
     const decodedClaims = outputs.decodedClaims as number[][];
     const circuitClaimHash = outputs.claimHashes as number[][];
+    // console.log("decodedClaims:", decodedClaims);
+    // console.log("circuitClaimHash:", circuitClaimHash);
 
     for (let i = 0; i < testcase.length; i++) {
       const length = Number(claimLengths[i]);

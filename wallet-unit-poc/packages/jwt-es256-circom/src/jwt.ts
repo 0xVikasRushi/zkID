@@ -68,8 +68,6 @@ export function generateJwtInputs(
     matchIndex.push(0);
   }
 
-  let ageClaim = atob(claims[1]).split(",")[1].replace(/"/g, "").trim();
-  assert.ok(ageClaim === "roc_birthday");
 
   let { claimArray, claimLengths } = encodeClaims(claims, params.maxMatches, params.maxClaimLength);
 

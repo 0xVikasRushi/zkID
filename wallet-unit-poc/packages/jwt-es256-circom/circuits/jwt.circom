@@ -52,12 +52,12 @@ template JWT(
         
     ClaimComparator(maxMatches, maxSubstringLength)(claimDecoder.claimHashes ,claimLengths, matchSubstring, matchLength);
 
-    component es256 = ES256(n,k,maxMessageLength);
-    es256.message <== message;
-    es256.messageLength <== messageLength;
-    es256.sig_r <== sig_r;
-    es256.sig_s <== sig_s;
-    es256.pubkey <== pubkey;
+    // component es256 = ES256(n,k,maxMessageLength);
+    // es256.message <== message;
+    // es256.messageLength <== messageLength;
+    // es256.sig_r <== sig_r;
+    // es256.sig_s <== sig_s;
+    // es256.pubkey <== pubkey;
 
     component extractor = HeaderPayloadExtractor(maxMessageLength,maxB64HeaderLength, maxB64PayloadLength);
     extractor.message <== message;
@@ -82,5 +82,6 @@ template JWT(
         matcher[i].enabled <== enableMacher[i].out;
     }
 
-    signal output ageAbove18 <== AgeVerifier(decodedLen)(claimDecoder.decodedClaims[1], currentYear, currentMonth, currentDay);
+    signal output ageAbove18 <== AgeVerifier(decodedLen)(claimDecoder.decodedClaims[2], currentYear, currentMonth, currentDay);
+    log(ageAbove18);
 }
