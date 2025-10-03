@@ -3,6 +3,7 @@ use std::{env::current_dir, fs::File, io::Read, path::PathBuf};
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use circom_scotia::{generate_witness_from_wasm, r1cs::CircomConfig, synthesize};
 use spartan2::traits::circuit::SpartanCircuit;
+use tracing::info;
 
 use crate::{Scalar, E};
 
@@ -38,6 +39,8 @@ impl SpartanCircuit<E> for JWTCircuit {
             witness_input_json,
             PathBuf::from("output.wtns"),
         );
+
+        info!(witness_len = witness.len(), "witness length");
 
         let cfg = CircomConfig::new(wtns, r1cs).unwrap();
         synthesize(cs, cfg.r1cs.clone(), Some(witness))?;

@@ -326,9 +326,11 @@ impl<E: Engine> SpartanWitness<E> for SatisfyingAssignment<E> {
       transcript.absorb(b"comm_W_precommitted", comm_W_precommitted);
     }
 
-    let challenges = (0..S.num_challenges)
-      .map(|_| transcript.squeeze(b"challenge"))
-      .collect::<Result<Vec<E::Scalar>, SpartanError>>()?;
+    // OPTIMIZATION 1: Pre-allocate challenges vector with known size
+    let mut challenges = Vec::with_capacity(S.num_challenges);
+    for _ in 0..S.num_challenges {
+      challenges.push(transcript.squeeze(b"challenge")?);
+    }
 
     circuit
       .synthesize(&mut ps.cs, &ps.shared, &ps.precommitted, Some(&challenges))
@@ -336,11 +338,18 @@ impl<E: Engine> SpartanWitness<E> for SatisfyingAssignment<E> {
         reason: format!("Unable to synthesize witness: {e}"),
       })?;
 
-    for (i, s) in ps.cs.aux_assignment[S.num_shared_unpadded + S.num_precommitted_unpadded..]
-      .iter()
-      .enumerate()
-    {
-      ps.W[S.num_shared + S.num_precommitted + i] = *s;
+    // OPTIMIZATION 2: Use bulk copy instead of element-wise copying
+    let rest_start = S.num_shared_unpadded + S.num_precommitted_unpadded;
+    let rest_end = ps.cs.aux_assignment.len();
+    let witness_start = S.num_shared + S.num_precommitted;
+    let witness_end = witness_start + (rest_end - rest_start);
+
+    if witness_end <= ps.W.len() {
+      ps.W[witness_start..witness_end].copy_from_slice(&ps.cs.aux_assignment[rest_start..rest_end]);
+    } else {
+      return Err(SpartanError::SynthesisError {
+        reason: "Witness vector too small for auxiliary assignment".to_string(),
+      });
     }
 
     // commit to the rest with partial commitment
@@ -354,17 +363,26 @@ impl<E: Engine> SpartanWitness<E> for SatisfyingAssignment<E> {
     info!(elapsed_ms = %commit_rest_t.elapsed().as_millis(), "commit_witness_rest");
     transcript.absorb(b"comm_W_rest", &comm_W_rest); // add commitment to transcript
 
-    let public_values = ps.cs.input_assignment[1..].to_vec()[..S.num_public].to_vec();
+    // OPTIMIZATION 3: Avoid unnecessary vector allocation for public values
+    let public_values = if S.num_public > 0 && ps.cs.input_assignment.len() > S.num_public {
+      ps.cs.input_assignment[1..S.num_public + 1].to_vec()
+    } else {
+      Vec::new()
+    };
+
+    // OPTIMIZATION 4: Use references instead of cloning commitments
     let U = SplitR1CSInstance::<E>::new(
       S,
-      ps.comm_W_shared.clone(),
-      ps.comm_W_precommitted.clone(),
+      ps.comm_W_shared.as_ref().map(|c| c.clone()),
+      ps.comm_W_precommitted.as_ref().map(|c| c.clone()),
       comm_W_rest,
       public_values,
       challenges,
     )?;
 
-    let W = R1CSWitness::<E>::new_unchecked(ps.W.clone(), ps.r_W.clone(), is_small)?;
+    // OPTIMIZATION 5: Move instead of clone (saves GBs!)
+    let ps_W = std::mem::take(&mut ps.W);
+    let W = R1CSWitness::<E>::new_unchecked(ps_W, ps.r_W.clone(), is_small)?;
 
     info!(elapsed_ms = %synth_t.elapsed().as_millis(), "circuit_synthesize_rest");
 
