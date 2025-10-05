@@ -13,12 +13,12 @@
 
 use crate::config_generator::{prove_ecdsa, prove_jwt, prove_sum_check_jwt};
 use crate::ecdsa_circuit::ECDSACircuit;
+use std::{env::current_dir, fs::File, io::Read, path::PathBuf};
 use crate::jwt_circuit::JWTCircuit;
 use crate::setup::{run_circuit, setup_ecdsa_keys, setup_jwt_chunked_keys, setup_jwt_keys};
 
 use circom_scotia::generate_witness_from_wasm;
-use num_traits::ToPrimitive;
-use rust_witness::{witness, BigInt};
+use rust_witness::BigInt;
 use spartan2::{provider::T256HyraxEngine, traits::Engine};
 use std::collections::HashMap;
 use std::env::args;
@@ -32,7 +32,7 @@ mod config_generator;
 mod ecdsa_circuit;
 mod jwt_circuit;
 mod setup;
-witness!(main);
+rust_witness::witness!(main);
 
 fn main() {
     tracing_subscriber::fmt()
@@ -86,8 +86,6 @@ fn main() {
     }
 }
 
-use std::{env::current_dir, fs::File, io::Read, path::PathBuf};
-
 fn test_witness() {
     let root = current_dir().unwrap().join("../circom");
     let witness_dir = root.join("build/jwt/jwt_js");
@@ -117,20 +115,17 @@ fn test_witness() {
 
     let input_data: serde_json::Value = serde_json::from_str(&witness_input_json).unwrap();
 
-    // Convert JSON input to HashMap<String, Vec<Scalar>> format
     let mut inputs_bigint: HashMap<String, Vec<BigInt>> = HashMap::new();
 
     if let Some(obj) = input_data.as_object() {
         for (key, value) in obj {
             match value {
                 serde_json::Value::String(s) => {
-                    // Parse string as BigInt first, then convert to Scalar
                     if let Ok(bigint) = s.parse::<BigInt>() {
                         inputs_bigint.insert(key.clone(), vec![bigint]);
                     }
                 }
                 serde_json::Value::Array(arr) => {
-                    // Parse array of numbers as Vec<Scalar>
                     let mut scalars = Vec::new();
                     let mut bigints = Vec::new();
                     for item in arr {
@@ -146,20 +141,21 @@ fn test_witness() {
         }
     }
 
-    // Generate witness using rust-witness (replacing generate_witness_from_wasm)
-    let witness_bigints = main_witness(inputs_bigint);
+    info!("------------RustWitness ---------------");
 
-    // Convert Vec<BigInt> to Vec<Scalar>
-    let witness_scalars: Vec<Scalar> = witness_bigints
-        .into_iter()
-        .filter_map(|bigint| bigint.to_u64().map(Scalar::from))
-        .collect();
+    let witness_bigints_calc = main_witness(inputs_bigint.clone());
 
-    // // assert_eq!(witness_scalars, witness_circom_scotia);
-    // for i in 0..witness_scalars.len() {
-    //     print!("index {}", i);
-    //     assert_eq!(witness_scalars[i], witness_circom_scotia[i]);
-    //     println!("");
-    // }
-    info!("witness_scalars length: {}", witness_scalars.len());
+    info!(
+        "witness_bigints_calc length: {}",
+        witness_bigints_calc.len()
+    );
+
+    for i in 0..witness_bigints_calc.len() {
+        println!(
+            "witness_circom_scotia[{}]: {:?}, witness_bigints_rust[{}]: {:?}",
+            i, witness_circom_scotia[i], i, witness_bigints_calc[i]
+        );
+    }
+
+    info!("------------Witness Calc---------------");
 }
