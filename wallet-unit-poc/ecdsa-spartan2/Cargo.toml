@@ -16,6 +16,13 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter", "time"] }
 sha2 = "0.10.7"
 bincode = "1.3.3"
 memmap2 = "0.9.8"
+rust-witness = { path = "../forks/rust-witness" }
+num-traits = "0.2"
+
+
+[build-dependencies]
+rust-witness = { path = "../forks/rust-witness" }
+
 
 [profile.release]
 debug = true
